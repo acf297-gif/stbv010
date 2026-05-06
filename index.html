@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SANTOS BRAVOS</title>
+
+<style>
+body{
+margin:0;
+font-family:Arial;
+background:#f5f5f5;
+color:#111;
+display:flex;
+}
+
+.sidebar{
+width:260px;
+background:#fff;
+height:100vh;
+overflow:auto;
+padding:15px;
+border-right:1px solid #ddd;
+}
+
+.main{flex:1;padding:20px}
+
+h2{margin:0 0 10px}
+
+.cat-btn{
+margin:3px;
+padding:10px;
+background:#eee;
+border:none;
+cursor:pointer;
+border-radius:6px;
+font-weight:bold;
+}
+
+.cat-btn.active{
+background:#111;
+color:#fff;
+}
+
+.sub{
+margin-top:15px;
+display:flex;
+flex-direction:column;
+gap:6px;
+}
+
+.sub-btn{
+padding:8px;
+background:#f0f0f0;
+border:1px solid #ddd;
+border-radius:6px;
+cursor:pointer;
+font-size:13px;
+}
+
+.grid{
+display:grid;
+grid-template-columns:repeat(auto-fill,minmax(180px,1fr));
+gap:12px;
+}
+
+.card{
+background:#fff;
+border-radius:10px;
+overflow:hidden;
+position:relative;
+border:1px solid #eee;
+cursor:pointer;
+}
+
+.card img{width:100%}
+
+.card div{
+padding:8px;
+line-height:1.4;
+}
+
+/* admin button */
+.admin-btn{
+position:fixed;
+bottom:20px;
+right:20px;
+background:#111;
+color:#fff;
+border:none;
+padding:12px 14px;
+border-radius:50%;
+}
+
+/* modal */
+.modal{
+display:none;
+position:fixed;
+top:0;left:0;width:100%;height:100%;
+background:rgba(0,0,0,0.4);
+justify-content:center;
+align-items:center;
+}
+
+.modal-box{
+background:#fff;
+padding:20px;
+border-radius:10px;
+width:260px;
+}
+
+.modal-box input,
+.modal-box select{
+width:100%;
+margin:5px 0;
+padding:8px;
+border:1px solid #ddd;
+border-radius:6px;
+}
+
+/* delete */
+.del-btn{
+position:absolute;
+top:5px;
+right:5px;
+background:red;
+border:none;
+color:#fff;
+padding:3px 6px;
+font-size:12px;
+border-radius:4px;
+display:none;
+}
+</style>
+</head>
+
+<body>
+
+<div class="sidebar">
+<h2>산토스 브라보스</h2>
+
+<div>
+<button class="cat-btn" onclick="setCategory('방송')">방송</button>
+<button class="cat-btn" onclick="setCategory('자컨')">자컨</button>
+<button class="cat-btn" onclick="setCategory('무대')">무대</button>
+<button class="cat-btn" onclick="setCategory('사진')">사진</button>
+</div>
+
+<div class="sub" id="subList"></div>
+</div>
+
+<div class="main">
+<h2 id="titleText">방송</h2>
+<div class="grid" id="grid"></div>
+</div>
+
+<!-- 관리자 버튼 -->
+<button class="admin-btn" onclick="openModal()">🔐</button>
+
+<!-- 로그인 -->
+<div class="modal" id="modal">
+<div class="modal-box">
+<h4>관리자 로그인</h4>
+<input id="pw" type="password" placeholder="비밀번호">
+<button onclick="login()">확인</button>
+<button onclick="closeModal()">닫기</button>
+</div>
+</div>
+
+<!-- 관리자 패널 -->
+<div id="adminBox" style="display:none;position:fixed;bottom:80px;right:20px;background:#fff;padding:15px;border-radius:10px;width:260px;border:1px solid #ddd">
+
+<h4>관리자</h4>
+
+<select id="categorySelect" onchange="syncSubList()">
+<option>방송</option>
+<option>자컨</option>
+<option>무대</option>
+<option>사진</option>
+</select>
+
+<select id="subSelect">
+<option value="">하위메뉴 선택</option>
+</select>
+
+<input id="newSub" placeholder="하위메뉴 새로 만들기 (선택)">
+<input id="title" placeholder="링크 제목">
+<input id="link" placeholder="유튜브 링크 URL">
+<input id="date" type="date">
+
+<br><br>
+<button onclick="addItem()">추가</button>
+</div>
+
+<script>
+
+let category="방송"
+let isAdmin=false
+
+/* 유튜브 썸네일 추출 */
+function getYoutubeThumbnail(url){
+if(!url) return ""
+
+let id=""
+
+if(url.includes("watch?v=")){
+id = url.split("v=")[1].split("&")[0]
+}
+else if(url.includes("youtu.be/")){
+id = url.split("youtu.be/")[1].split("?")[0]
+}
+
+if(id){
+return `https://img.youtube.com/vi/${id}/0.jpg`
+}
+
+return ""
+}
+
+function getData(){
+return JSON.parse(localStorage.getItem("data")||"[]")
+}
+
+function saveData(d){
+localStorage.setItem("data",JSON.stringify(d))
+}
+
+/* category */
+function setCategory(c){
+category=c
+document.getElementById("titleText").innerText=c
+render()
+renderSubs()
+}
+
+/* sub list */
+function renderSubs(){
+let data=getData().filter(i=>i.category===category)
+
+let subs=[...new Set(data.map(i=>i.subcategory).filter(Boolean))]
+
+subs.sort((a,b)=>a.localeCompare(b,'ko'))
+
+document.getElementById("subList").innerHTML=
+subs.map(s=>`
+<div class="sub-btn" onclick="filterSub('${s}')">${s}</div>
+`).join("")
+}
+
+/* filter */
+function filterSub(s){
+let data=getData().filter(i=>i.subcategory===s)
+render(data)
+}
+
+/* render */
+function render(list=null){
+let data=list || getData().filter(i=>i.category===category)
+
+data.sort((a,b)=>new Date(b.date)-new Date(a.date))
+
+document.getElementById("grid").innerHTML=data.map(i=>`
+<div class="card" onclick="goLink('${i.link}')">
+<button class="del-btn" style="display:${isAdmin?'block':'none'}" onclick="event.stopPropagation(); deleteItem('${i.title}')">X</button>
+<img src="${i.img}">
+<div>${i.title}<br><small>${i.date}</small></div>
+</div>
+`).join("")
+
+renderSubs()
+}
+
+/* link */
+function goLink(link){
+if(link) window.open(link,"_blank")
+}
+
+/* delete */
+function deleteItem(title){
+let data=getData()
+data=data.filter(i=>i.title!==title)
+saveData(data)
+render()
+}
+
+/* modal */
+function openModal(){
+document.getElementById("modal").style.display="flex"
+}
+
+function closeModal(){
+document.getElementById("modal").style.display="none"
+}
+
+/* login */
+function login(){
+if(document.getElementById("pw").value==="1234"){
+isAdmin=true
+document.getElementById("adminBox").style.display="block"
+closeModal()
+render()
+}else{
+alert("비밀번호 틀림")
+}
+}
+
+/* sync */
+function syncSubList(){
+let cat=document.getElementById("categorySelect").value
+let data=getData().filter(i=>i.category===cat)
+
+let subs=[...new Set(data.map(i=>i.subcategory).filter(Boolean))]
+
+subs.sort((a,b)=>a.localeCompare(b,'ko'))
+
+document.getElementById("subSelect").innerHTML=
+`<option value="">하위메뉴 선택</option>` +
+subs.map(s=>`<option value="${s}">${s}</option>`).join("")
+}
+
+/* add */
+function addItem(){
+
+let newSub=document.getElementById("newSub").value
+let selectedSub=document.getElementById("subSelect").value
+let link=document.getElementById("link").value
+
+let d=getData()
+
+d.push({
+category:document.getElementById("categorySelect").value,
+subcategory:newSub || selectedSub || "",
+title:document.getElementById("title").value,
+img:getYoutubeThumbnail(link),
+link:link,
+date:document.getElementById("date").value
+})
+
+saveData(d)
+render()
+syncSubList()
+}
+
+render()
+
+</script>
+
+</body>
+</html>
